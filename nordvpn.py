@@ -7,6 +7,12 @@ from gi.repository import GLib as glib  # noqa
 import subprocess
 
 
+ICON_CONNECTED = "nordvpn"
+ICON_DISCONNECTED = "nordvpn_red"
+INDICATOR_ID = "nordvpn-indicator"
+REFRESH_MS = 1000
+
+
 class Connection:
     def __init__(self):
         self.status = False
@@ -68,26 +74,27 @@ class Menu:
         for k, v in self.info_buttons.items():
             if k not in connection.data:
                 expired[k] = v
-        for k,v in expired.items():
+        for k, v in expired.items():
             self.menu.remove(v)
             del self.info_buttons[k]
         for k, v in connection.data.items():
+            label = f"{k}: {v}"
             if k not in self.info_buttons:
-                info_button = gtk.MenuItem.new_with_label(f"{k}: {v}")
+                info_button = gtk.MenuItem.new_with_label(label)
                 info_button.set_sensitive(False)
                 self.info_buttons[k] = info_button
                 self.menu.insert(info_button, 1)
             else:
-                self.info_buttons[k].set_label(f"{k}: {v}")
+                self.info_buttons[k].set_label(label)
         self.menu.show_all()
         self.connection = connection
 
 
 def connection_info():
-    out = subprocess.run(["nordvpn", "status"],
+    child = subprocess.run(["nordvpn", "status"],
                          capture_output=True, check=True)
-    stdout = out.stdout.decode("utf8")
-    lines = stdout.split("\n")
+    out = child.stdout.decode("utf8")
+    lines = out.split("\n")
     connection = Connection()
     for line in lines:
         tokens = line.split(": ")
@@ -106,9 +113,9 @@ def connection_info():
 
 def icon_for_status(status):
     if status:
-        return "nordvpn", "NordVPN connected"
+        return ICON_CONNECTED, "NordVPN connected"
     else:
-        return "nordvpn_red", "NordVPN disconnected"
+        return ICON_DISCONNECTED, "NordVPN disconnected"
 
 
 def do_update_status(indicator, menu):
@@ -122,13 +129,12 @@ def do_update_status(indicator, menu):
 def main():
     connection = connection_info()
     icon, _ = icon_for_status(connection.status)
-    indicator_id = "nordvpn"
     category = appindicator.IndicatorCategory.APPLICATION_STATUS
-    indicator = appindicator.Indicator.new(indicator_id, icon, category)
+    indicator = appindicator.Indicator.new(INDICATOR_ID, icon, category)
     indicator.set_status(appindicator.IndicatorStatus.ACTIVE)
     menu = Menu(connection)
     indicator.set_menu(menu.gtk_handle())
-    glib.timeout_add(1000, do_update_status, indicator, menu)
+    glib.timeout_add(REFRESH_MS, do_update_status, indicator, menu)
     gtk.main()
 
 
